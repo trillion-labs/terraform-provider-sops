@@ -1,43 +1,39 @@
 name: Release
-
 on:
   push:
     tags:
-      - v*
-
-env:
-  GO_VERSION: '1.21'
-
-# Request permissions to write (edit, create) new releases
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 permissions:
   contents: write
-
 jobs:
-  release:
-    name: Release
+  goreleaser:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup golang ${{ env.GO_VERSION }}
+      -
+        name: Checkout
+        uses: actions/checkout@v4
+      -
+        name: Unshallow
+        run: git fetch --prune --unshallow
+      -
+        name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: ${{ env.GO_VERSION }}
-
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Build
-        run: go build -v .
-
-      - name: Import test GPG key
-        run: gpg --import test/testing-key.pgp
-
-      - name: Test
-        run: make test
-
-      - name: Crossbuild
-        run: make crossbuild
-
-      - name: Release
-        run: make release
+          go-version-file: 'go.mod'
+          cache: true
+      -
+        name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v5
+        id: import_gpg
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v3.0.0
+        with:
+          version: latest
+          args: release --parallelism 2 --clean --timeout 1h
         env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          # GitHub sets this automatically
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
